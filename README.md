@@ -72,13 +72,19 @@ Assign this credential to the **Execute WHM API** node.
 
 ### 4. Authorized Telegram User IDs
 
-In the **Is Authorized User?** node, edit the condition:
+In the **Is Authorized User?** node, edit the condition to include your Telegram user ID(s):
 
 ```javascript
-{{ [6585303433, 7143035171].includes($json.message.from.id) }}
+{{ [YOUR_TELEGRAM_ID, ANOTHER_USER_ID].includes($json.message.from.id) }}
+
+// Example:
+// {{ [1234567890, 9876543210].includes($json.message.from.id) }}
 ```
 
-> Replace with your actual numeric Telegram user IDs.
+> **How to find your Telegram user ID:**  
+> Open Telegram and send any message to [@userinfobot](https://t.me/userinfobot). It will instantly reply with your numeric user ID.  
+> Alternatively, you can use [@getidsbot](https://t.me/getidsbot) or [@RawDataBot](https://t.me/RawDataBot) — all work the same way.  
+> Replace the placeholder values above with your actual numeric IDs.
 
 ### 5. WHM Hostname
 
