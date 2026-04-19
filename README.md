@@ -100,7 +100,15 @@ https://your-server.com:2087/json-api/
 
 ## 🚀 Usage
 
-1. Add the bot to a Telegram group (or start a private chat).
+> **⚠️ Important – Group Only:**  
+> This bot does **not** work in direct/private messages. The workflow is specifically designed to listen for **group mentions** only. You must:
+> 1. Create a new Telegram group.
+> 2. Add the bot to that group.
+> 3. Mention the bot by username (e.g., `@nlsadminbot`) followed by your command.
+>
+> Messaging the bot directly will result in no response, as the trigger is not configured for private chats.
+
+1. Create a new Telegram group and add your bot to it.
 2. Mention the bot by its username (e.g., `@nlsadminbot`).
 3. Type a command in natural language.
 
@@ -119,7 +127,7 @@ https://your-server.com:2087/json-api/
 
 ## 🔄 How It Works
 
-1. **Telegram Trigger** – Listens for messages where the bot is mentioned.
+1. **Telegram Trigger** – Listens for messages where the bot is mentioned inside a group.
 2. **Authorization Check** – Verifies the sender is allowed.
 3. **LLM Engine** – Sends the user's message to the LLM with strict system instructions:
    - If no `CONFIRM` → reply `{ "action": "chat", "reply": "⚠️ Please add CONFIRM ..." }`
@@ -127,7 +135,7 @@ https://your-server.com:2087/json-api/
 4. **Action Router** – Routes to either a direct chat reply or the WHM API execution.
 5. **Execute WHM API** – Sends the constructed API path to your server.
 6. **LLM Summarizer** – Converts the raw API response into a friendly Telegram message.
-7. **Send Notification** – Delivers the final result back to the group/chat.
+7. **Send Notification** – Delivers the final result back to the group.
 
 ---
 
@@ -152,7 +160,8 @@ https://your-server.com:2087/json-api/
 
 | Issue | Likely Fix |
 |---|---|
-| Bot does not respond | Check that the webhook URL is set correctly in Telegram (use n8n's webhook URL for the trigger). |
+| Bot does not respond to direct messages | This is expected — the workflow only listens for group mentions. Add the bot to a Telegram group and mention it there. |
+| Bot does not respond in group | Check that the webhook URL is set correctly in Telegram (use n8n's webhook URL for the trigger). |
 | Error parsing AI response | The LLM may have returned malformed JSON. The workflow includes a fallback regex parser; check n8n execution logs. |
 | WHM API returns Access Denied | Verify the `Authorization` header format and that the API token has the required privileges. |
 | Self-signed certificate error | Ensure **Allow Unauthorized Certificates** is enabled in the HTTP Request node. |
