@@ -1,0 +1,390 @@
+{
+  "name": "WHM AI Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "0a16ba77-349c-4efc-a713-029b5e1046db",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4288,
+        496
+      ],
+      "webhookId": "9c975c98-6bab-4fc9-b9e5-c2264ee24547",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "LLM_API_ENDPOINT",
+              "value": "https://openrouter.ai/api/v1/chat/completions"
+            },
+            {
+              "name": "LLM_API_KEY",
+              "value": "Bearer YOUR_OPENROUTER_API_KEY_HERE"
+            },
+            {
+              "name": "LLM_MODEL",
+              "value": "nvidia/nemotron-3-nano-30b-a3b:free"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "925d1567-6e34-4c9b-b318-5637bd1809ef",
+      "name": "AI Platform Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        -4080,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message.text }}",
+              "operation": "contains",
+              "value2": "@YOUR_BOT_USERNAME"
+            }
+          ]
+        }
+      },
+      "id": "be82f59e-aecc-49d4-a77c-5284558fd17c",
+      "name": "Is Bot Mentioned?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -3856,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ [YOUR_TELEGRAM_USER_ID, ANOTHER_AUTHORIZED_USER_ID].includes($json.message.from.id) }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "c6031c7b-0ec6-445c-b2a2-4f407fa38eca",
+      "name": "Is Authorized User?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -3632,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('AI Platform Settings').item.json.LLM_API_ENDPOINT }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $('AI Platform Settings').item.json.LLM_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {   \"model\": $('AI Platform Settings').item.json.LLM_MODEL,   \"messages\": [     {       \"role\": \"user\",       \"content\": \"SYSTEM INSTRUCTION: You are an autonomous WHM Administrator Machine. You DO NOT give explanations. You EXECUTE actions. ALWAYS output exactly in JSON format.\\n\\nRule 1: If user says hello or thanks or general talk, output: {\\\"action\\\":\\\"chat\\\",\\\"reply\\\":\\\"Hello, I am ready!\\\"}\\n\\nRule 2: If user asks for ANY server info or action BUT does not explicitly type 'CONFIRM', DO NOT EXPLAIN HOW TO DO IT. You MUST output exactly: {\\\"action\\\":\\\"chat\\\",\\\"reply\\\":\\\"⚠️ Please reply again with your command and add the word CONFIRM to execute it on the server.\\\"} \\n\\nRule 3: If user asks for info or action AND includes the word 'CONFIRM', MUST translate their natural language into the correct WHM/cPanel API endpoint and output exactly: {\\\"action\\\":\\\"whm_api\\\",\\\"url_path\\\":\\\"[API_PATH]\\\"}.\\n\\nCrucial API Guidelines to construct [API_PATH]:\\n1. For Server Admin Tasks (create, suspend, terminate, summary, password reset): Use native WHM API 1. Example: 'suspendacct?api.version=1&user=USERNAME'.\\n2. For ALL User-Level cPanel Tasks (emails, databases, domains, ssl, ftp): You MUST use the WHM UAPI wrapper `uapi_cpanel`. Format: 'uapi_cpanel?api.version=1&cpanel.user=USERNAME&cpanel.module=MODULE_NAME&cpanel.function=FUNCTION_NAME'. ALWAYS use dot-notation for core UAPI parameters!\\n\\n---\\n\\nUSER REQUEST: \" + $json.message.text     }   ] } }}",
+        "options": {}
+      },
+      "id": "dd49aa96-d003-4f2f-8bcb-1db1c624b38e",
+      "name": "LLM Engine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -3424,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.first().json.choices[0]?.message?.content || '{}';\n\n// Clean markdown formatting if model hallucinates it\nlet cleaned = content.replace(/```json/g, '').replace(/```/g, '').trim();\n\nlet parsed = {};\ntry {\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  // Regex fallback: Extract first complete matching JSON bracket structure\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    parsed = JSON.parse(match[0]);\n  } else {\n    parsed = { \"action\": \"chat\", \"reply\": \"Error parsing AI response inside n8n: \" + content };\n  }\n}\n\nreturn parsed;"
+      },
+      "id": "e3503fab-a45e-4034-a617-4400a15addf1",
+      "name": "Parse & Clean JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3232,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.action }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "chat"
+            },
+            {
+              "value2": "whm_api",
+              "output": 1
+            }
+          ]
+        }
+      },
+      "id": "a259f9c0-abca-48b7-8152-48d324678b6a",
+      "name": "Action Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -3008,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {}
+      },
+      "id": "686ab3a9-6a63-4b1c-b805-61c55df0a742",
+      "name": "Send Chat Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -2752,
+        336
+      ],
+      "webhookId": "df2a3e9f-8bce-44d7-86a0-0e59de06ff76",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://YOUR_WHM_SERVER_DOMAIN:2087/json-api/' + $json.url_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "3f698320-9e6f-46ef-a10a-87a72d605caa",
+      "name": "Execute WHM API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -2736,
+        528
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_WHM_HEADER_AUTH_CREDENTIAL_ID",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('AI Platform Settings').item.json.LLM_API_ENDPOINT }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $('AI Platform Settings').item.json.LLM_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {   \"model\": $('AI Platform Settings').item.json.LLM_MODEL,   \"messages\": [     {       \"role\": \"user\",       \"content\": \"SYSTEM INSTRUCTION: You are a friendly WHM Server Administrator AI. You just executed a command for the user and the WHM server returned this raw JSON data:\\n\\n\" + JSON.stringify($json.data || $json) + \"\\n\\nAnalyze this JSON and write a clear, human-readable summary message for the user in Telegram. Only extract the most important information like success status, errors, sizes, or domain lists. Do not reply with JSON, reply with readable text.\"     }   ] } }}",
+        "options": {}
+      },
+      "id": "1f9a8beb-9bd8-4327-afac-9d4656b717f9",
+      "name": "LLM Summarizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -2496,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ '✅ *Action Executed*\\n\\n' + $json.choices[0].message.content }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "bb984a67-573c-4f96-bed3-d0a8c43cce26",
+      "name": "Send Success Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -2256,
+        480
+      ],
+      "webhookId": "015bbeb5-7ddb-4d5c-be1d-6fd2d9876e12",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Platform Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Platform Settings": {
+      "main": [
+        [
+          {
+            "node": "Is Bot Mentioned?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Bot Mentioned?": {
+      "main": [
+        [
+          {
+            "node": "Is Authorized User?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Authorized User?": {
+      "main": [
+        [
+          {
+            "node": "LLM Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Engine": {
+      "main": [
+        [
+          {
+            "node": "Parse & Clean JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Clean JSON": {
+      "main": [
+        [
+          {
+            "node": "Action Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action Router": {
+      "main": [
+        [
+          {
+            "node": "Send Chat Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute WHM API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute WHM API": {
+      "main": [
+        [
+          {
+            "node": "LLM Summarizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Summarizer": {
+      "main": [
+        [
+          {
+            "node": "Send Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "44432765-ea81-4278-958f-c7abd9f351f8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "id": "YOUR_WORKFLOW_ID",
+  "tags": []
+}
